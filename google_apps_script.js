@@ -3,21 +3,25 @@
  */
 
 function doPost(e) {
+    var lock = LockService.getScriptLock();
     try {
+        // 최대 30초간 대기 (600명이 동시에 누를 경우를 대비)
+        lock.waitLock(30000);
+
         var data = JSON.parse(e.postData.contents);
         var ss = SpreadsheetApp.getActiveSpreadsheet();
         var sheet = ss.getSheets()[0];
 
-        var studentId = data.studentId;
+        var studentId = data.studentId.toString();
         var name = data.name;
         var appliedAt = data.appliedAt;
         var dates = data.dates.join(", ");
 
         // 1. 기존 데이터 확인 및 중복 삭제 (학번과 이름이 일치하는 경우)
         var rows = sheet.getDataRange().getValues();
-        for (var i = rows.length - 1; i >= 0; i--) {
-            if (rows[i][0].toString() === studentId.toString() && rows[i][1].toString() === name.toString()) {
-                sheet.deleteRow(i + 1); // 기존 신청 행 삭제
+        for (var i = rows.length - 1; i >= 1; i--) { // 헤더 제외
+            if (rows[i][0].toString() === studentId && rows[i][1].toString() === name) {
+                sheet.deleteRow(i + 1);
             }
         }
 
@@ -30,6 +34,8 @@ function doPost(e) {
     } catch (error) {
         return ContentService.createTextOutput(JSON.stringify({ "result": "error", "message": error.toString() }))
             .setMimeType(ContentService.MimeType.JSON);
+    } finally {
+        lock.releaseLock(); // 잠금 해제
     }
 }
 
