@@ -242,7 +242,7 @@
     const { useState, useEffect } = React;
 
     const YOUR_CLIENT_ID = "783955617247-32toh8t2khrb9l1qj1sbhl5t4it7au54.apps.googleusercontent.com";
-    const YOUR_GAS_URL = "https://script.google.com/macros/s/AKfycby4PHViqNjRQGeWLqKC1yfK4fvYr6UidFnvr7XrYXDP5VxeEKrbLQgPWb7b6vzo0xU2/exec";
+    const YOUR_GAS_URL = "https://script.google.com/macros/s/AKfycbzzEnFbozGd3xiz48ma-4VXZdbiZOdJdn-930IQNmMQVK4F8uXpfKwknAH6uFGC4eB6/exec";
 
     function App() {
       const [user, setUser] = useState(null);
@@ -270,6 +270,23 @@
       };
 
       useEffect(() => {
+        const fetchHistory = async () => {
+          if (!user) return;
+          try {
+            const resp = await fetch(`${YOUR_GAS_URL}?studentId=${user.id}&name=${user.name}`);
+            const data = await resp.json();
+            if (data.found && data.dates) {
+              setSelectedDates(data.dates);
+              console.log('History loaded:', data.dates);
+            }
+          } catch (e) {
+            console.error('History fetch error:', e);
+          }
+        };
+        fetchHistory();
+      }, [user]);
+
+      useEffect(() => {
         if (window.google) {
           google.accounts.id.initialize({
             client_id: YOUR_CLIENT_ID,
@@ -291,6 +308,11 @@
 
       const handleSubmit = async () => {
         if (selectedDates.length === 0 || isSubmitting) return;
+
+        // 중복 신청 확인 (기존 내역이 있는 경우 사용자 확인)
+        const confirmMsg = "이미 신청한 내역이 있을 경우 기존 기록을 지우고 새로 신청합니다. 진행하시겠습니까?";
+        if (!confirm(confirmMsg)) return;
+
         setIsSubmitting(true);
         const payload = {
           studentId: user.id,
@@ -299,12 +321,18 @@
           dates: selectedDates.sort()
         };
         try {
-          await fetch(YOUR_GAS_URL, { method: 'POST', body: JSON.stringify(payload) });
+          const response = await fetch(YOUR_GAS_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+            mode: 'no-cors' // GAS 특성상 no-cors 사용 권장 (또는 리다이렉트 대응)
+          });
+
           setIsSuccess(true);
-          setSelectedDates([]);
+          // 신청 성공 후 다시 내역을 불러오거나 상태 유지
           setTimeout(() => setIsSuccess(false), 3000);
         } catch (error) {
-          alert('저장 실패! Apps Script 설정을 확인하세요.');
+          console.error('Submit Error:', error);
+          alert('신청 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
         } finally { setIsSubmitting(false); }
       };
 
